@@ -1,0 +1,27 @@
+{
+  "name": "boston-hydrant-script",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "create-json": "babel-node src/index.js",
+    "drafts": "babel-node src/drafts.js"
+  },
+  "keywords": [],
+  "author": "Tobin W Curran <tobincurran@gmail.com> (tobinwcurran.com)",
+  "license": "MIT",
+  "devDependencies": {
+    "@babel/core": "^7.2.2",
+    "@babel/node": "^7.2.2",
+    "@babel/plugin-proposal-class-properties": "^7.3.0",
+    "@babel/preset-env": "^7.2.3",
+    "nodemon": "^1.18.9"
+  },
+  "dependencies": {
+    "@google/maps": "^0.5.5",
+    "@types/google__maps": "^0.5.2",
+    "@types/googlemaps": "^3.30.16",
+    "dotenv": "^6.2.0"
+  }
+}
