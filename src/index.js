@@ -1,35 +1,14 @@
 import fs from 'fs';
-//import util from 'util';
+import findAddress from './findAddress';
 import 'dotenv/config';
-//import '@google/maps';
-import * as https from 'https'
-
-//import './Fire_Hydrants.geojson';
-
-// fs.readFile( __dirname + '/Fire_Hydrants.geojson', 'utf8', (error, data) => {
-//     if (error) throw error;
-//     //console.log(JSON.stringify(data, null, 4));
-//     InitCleanse(data);
-// } );
-
-// const InitCleanse = function InitCleanseOfOriginalGEOJSON(data){
-//     console.log(data.features[0]);
-// }
-
-const APIKey = process.env.GOOGLE_API_KEY;
-const googleMapsClient = require('@google/maps').createClient({
-    key: APIKey
-});
 
 const batchJob = {
-    start: 2000,
-    end: 2001,
+    start: process.argv[2], //3500
+    end: process.argv[3], //4000
+    timeout: 3013
 }
 
-const rawdata = fs.readFileSync(__dirname + '/Fire_Hydrants.geojson');
-const data = JSON.parse(rawdata);
-
-console.log('data.features.length: ', data.features.length);
+const endNumber = batchJob.end - 1;
 
 const rightNow = new Date(Date.now());
 const dateFormatOptions = {
@@ -40,103 +19,33 @@ const dateFormatOptions = {
     minute: 'numeric',
     second: 'numeric',
 };
+
 let rightNowFormatted = rightNow.toLocaleDateString('en-US', dateFormatOptions);
 
 rightNowFormatted = rightNowFormatted.replace(/\//g, '-');
 rightNowFormatted = rightNowFormatted.replace(/,/g, '');
 
-const findAddress = function findAddressFromGoogleAPI(query, i) {
-    return new Promise(function (resolve, reject) {
-        // googleMapsClient.reverseGeocode(query, function (error, response) {
-        //     if (!error) {
-        //         let objectToReturn = {
-        //             OBJECTID: data.features[i].properties.OBJECTID,
-        //             googleData: response.json.place_id
-        //         }
-        //         resolve(objectToReturn);
-        //     }
-        //     reject(error)
-        // })
 
-        //const nomUrl = ` https://nominatim.openstreetmap.org/reverse?${query}`;
-        const httpsOptions = {
-            hostname: 'nominatim.openstreetmap.org',
-            path: `/reverse?${query}`,
-            port: 443,
-            method: 'get',
-            headers: { 'User-Agent': 'hydrant.tobinwcurran.com' },
-        }
-        let thisObjectID = data.features[i].properties.OBJECTID;
+// This design assumes you have downloaded the the geojson file found here:
+// http://bostonopendata-boston.opendata.arcgis.com/datasets/1b0717d5b4654882ae36adc4a20fd64b_0.geojson
 
-            // https.get(httpsOptions, res => {
-            //     //res.setEncoding("utf8");
-            //     let body = "";
-            //     res.on("data", data => {
-            //         // let objectToReturn = {
-            //         //     OBJECTID: thisObjectID,
-            //         //     googleData: data
-            //         // }
-            //         body += data;
-            //         //console.log('data: ', data);
-            //         //resolve(objectToReturn);
-            //     });
-            //     res.on("end", () => {
-            //         body = JSON.parse(body);
-            //         //console.log('body: ', body);
-            //         let objectToReturn = {
-            //             OBJECTID: thisObjectID,
-            //             osmData: body
-            //         }
-                    
-            //         resolve(objectToReturn);
-            //     });
-            // });
+// This script could start with a Node HTTP.get() call to the address above
 
-        setTimeout( () => { 
-            https.get(httpsOptions, res => {
-                //res.setEncoding("utf8");
-                let body = "";
-                res.on("data", data => {
-                    // let objectToReturn = {
-                    //     OBJECTID: thisObjectID,
-                    //     googleData: data
-                    // }
-                    body += data;
-                    //console.log('data: ', data);
-                    //resolve(objectToReturn);
-                });
-                res.on("end", () => {
-                    body = JSON.parse(body);
-                    //console.log('body: ', body);
-                    let objectToReturn = {
-                        OBJECTID: thisObjectID,
-                        osmData: body
-                    }
-                    
-                    resolve(objectToReturn);
-                });
-            });
-        }, 5013);
+const rawdata = fs.readFileSync(__dirname + '/Fire_Hydrants.geojson');
+const bostonHydrantData = JSON.parse(rawdata);
 
-        //setTimeout(theLoop, 10000);
+console.log('Number of Hydrants: ', bostonHydrantData.features.length);
 
-    });
-}
+let slowLoopCounter = batchJob.start;
 
-const getAddresses = function getAddressesLoop() {
-    let responseArray = [];
+let arrayOfAddresses = [];
 
-    //for (let i = 0; i < data.features.length; i++){
+const slowLoop = function slowLoopBySetTimeout() {
+    setTimeout( () => {
 
-    for (let i = batchJob.start; i < batchJob.end; i++) {
-        //console.log('Looping number ', i);
-        let coords = data.features[i].geometry.coordinates;
-        // let query = {
-        //     latlng: {
-        //         lat: coords[1],
-        //         lng: coords[0]
-        //     }
-        // }
+        console.log("Working on number ", slowLoopCounter);
+        let coords = bostonHydrantData.features[slowLoopCounter].geometry.coordinates;
+
         let osmQuery = {
             format: 'jsonv2',
             lat: coords[1],
@@ -145,105 +54,37 @@ const getAddresses = function getAddressesLoop() {
         osmQuery = Object.keys(osmQuery).map(function (k) {
             return encodeURIComponent(k) + "=" + encodeURIComponent(osmQuery[k]);
         }).join('&');
-        //let thisI = i;
 
-        responseArray.push(findAddress(osmQuery, i));
-        //setDelay(responseArray, osmQuery, i);
-    }
-    //console.log('responseArray: ', responseArray)
-    return responseArray;
+        findAddress(osmQuery, bostonHydrantData, slowLoopCounter)
+            .then( (theAddressObject) => {
+                slowLoopCounter++;
+                arrayOfAddresses.push(theAddressObject);
+                if (slowLoopCounter < batchJob.end) {
+                    slowLoop();
+                } else {
+                    let returnedValsAsJson = JSON.stringify(arrayOfAddresses);
+                    fs.writeFile(`results/address-batch-${batchJob.start}-${endNumber} ${rightNowFormatted}.json`, returnedValsAsJson, 'utf8', () => {
+                        console.log(`Success! Your file "address-batch-${batchJob.start}-${endNumber} ${rightNowFormatted}.json" is available in the "results" folder.`);
+                        console.log(`You have just batched ${batchJob.start}-${batchJob.end}.`)
+                    });
+                }
+            })
+            .catch( (error) => {
+                fs.writeFile(`results/address-batch-error-${batchJob.start}-${endNumber} ${rightNowFormatted}.txt`, error, 'utf8', () => {
+                    console.log('Looks bad. Your error file is available in the "results" folder.');
+                });
+            });
+    }, batchJob.timeout)
 }
 
-const addresses = getAddresses();
-const endNumber = batchJob.end - 1;
-Promise.all(addresses)
-    .then((returnedVals) => {
-        //console.log('Promises Kept')
-        //console.log('returnVals: ', util.inspect(returnedVals, { depth: null }));
-        let returnedValsAsJson = JSON.stringify(returnedVals);
-        fs.writeFile(`results/address-batch-${batchJob.start}-${endNumber} ${rightNowFormatted}.json`, returnedValsAsJson, 'utf8', () => {
-            //extra
-            //console.log(util.inspect(responseArray, { depth: null }))
-            console.log(`Success! Your file "address-batch-${batchJob.start}-${endNumber} ${rightNowFormatted}.json" is available in the "results" folder.`);
-        });
+const checkArguments = function checkCommandLineArgumentsForStartAndStop(){
+    if(!process.argv[2]){
+        return console.log("Please provide a start and stop argument.");
+    }else if(!process.argv[3]){
+        return console.log("Please prvide a stop argument.");
+    }else{
+        slowLoop();
+    }
+}
 
-    })
-    .catch((error) => {
-        fs.writeFile(`results/address-batch-error-${batchJob.start}-${endNumber} ${rightNowFormatted}.txt`, error, 'utf8', () => {
-            //extra
-            console.log('Looks bad. Your error file is available in the "results" folder.');
-        });
-    });
-
-// const loopItems = async () => {
-//     let responseArray = [];
-
-//     for (let i = 0; i < 3; i++) {
-//         //console.log(data.features[i].geometry.coordinates);
-
-//         //console.log(util.inspect(data.features[i], { depth: null }))
-
-//         let coords = data.features[i].geometry.coordinates;
-//         let query = {
-//             latlng: {
-//                 lat: coords[1],
-//                 lng: coords[0]
-//             }
-//         }
-//         //console.log(query);
-//         //console.log(googleMapsClient);
-//         // let objectToReturn = {
-//         //     OBJECTID: null,
-//         //     googleData: null
-//         // }
-
-//         googleMapsClient.reverseGeocode(query, function (error, response) {
-//             //console.log(response);
-//             //console.log(error);
-//             //console.log(response.json);
-//             if(!error){
-//                 let objectToReturn = {
-//                     OBJECTID: data.features[i].properties.OBJECTID,
-//                     googleData: response.json
-//                 }
-//                 //console.log('objectToReturn', util.inspect(objectToReturn, { depth: null }))
-//                 return objectToReturn
-//             }
-//         }).then(function(objectToReturn){
-//             responseArray.push(objectToReturn);
-//         });
-//         //console.log('objectToReturn: ', util.inspect(objectToReturn, { depth: null }))
-//         console.log('Working the loop, number ' + i);
-//         //console.log('objectToReturn: ', objectToReturn)
-//     }
-//     console.log(responseArray);
-
-//     return responseArray;
-
-// }
-
-// loopItems().then(function(responseArray){
-//     //let parsedObject = JSON.parse(responseArray);
-//     console.log('I will write the file');
-//     //console.log(util.inspect(responseArray, { depth: null }))
-//     let responseAsJson = JSON.stringify(responseArray);
-//     //var fs = require('fs');
-//     fs.writeFile(`googleResonse-${rightNow}.json`, responseAsJson, 'utf8', function () {
-//         //console.log(util.inspect(responseArray, { depth: null }))
-//         console.log('Success! Your file is available in the "results" folder.');
-//     });
-// })
-
-
-
-
-
-// AIzaSyCl7vBxwEVxA-rf1DkfFZhJwXOSLEaK-7M
-
-//const hydrantDataParsed = JSON.parse(hydrantDataRaw);
-
-//console.log(JSON.stringify(hydrantDataRaw, null, 2));
-
-//console.log(hydrantDataParsed.features[1]);
-
-//export default hydrantDataParsed;
+checkArguments();
