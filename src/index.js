@@ -62,16 +62,24 @@ const slowLoop = function slowLoopBySetTimeout() {
                 if (slowLoopCounter < batchJob.end) {
                     slowLoop();
                 } else {
-                    let returnedValsAsJson = JSON.stringify(arrayOfAddresses);
-                    fs.writeFile(`results/address-batch-${batchJob.start}-${endNumber} ${rightNowFormatted}.json`, returnedValsAsJson, 'utf8', () => {
+                    let arrayOfAddressesAsJSON = JSON.stringify(arrayOfAddresses);
+                    fs.writeFile(`results/address-batch-${batchJob.start}-${endNumber} ${rightNowFormatted}.json`, arrayOfAddressesAsJSON, 'utf8', () => {
                         console.log(`Success! Your file "address-batch-${batchJob.start}-${endNumber} ${rightNowFormatted}.json" is available in the "results" folder.`);
                         console.log(`You have just batched ${batchJob.start}-${batchJob.end}.`)
                     });
                 }
             })
             .catch( (error) => {
+                if(arrayOfAddresses.length > 0){
+                    let arrayOfAddressesAsJSON = JSON.stringify(arrayOfAddresses);
+                        fs.writeFile(`results/address-batch-with-error${batchJob.start}-${endNumber} ${rightNowFormatted}.json`, arrayOfAddressesAsJSON, 'utf8', () => {
+                        console.log(`Success, ish? Your file "address-batch-with-error${batchJob.start}-${endNumber} ${rightNowFormatted}.json" is available in the "results" folder.`);
+                        console.log(`You have just batched ${batchJob.start}-${batchJob.end}, but it didn't finish.`)
+                    });
+                }
+                
                 fs.writeFile(`results/address-batch-error-${batchJob.start}-${endNumber} ${rightNowFormatted}.txt`, error, 'utf8', () => {
-                    console.log('Looks bad. Your error file is available in the "results" folder.');
+                    console.log(`Looks bad. Your error file is address-batch-error-${batchJob.start}-${endNumber} ${rightNowFormatted}.txt available in the "results" folder.`);
                 });
             });
     }, batchJob.timeout)
