@@ -6,6 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "create-json": "babel-node src/index.js",
+    "combine-data": "babel-node src/combineData.js",
     "drafts": "babel-node src/drafts.js"
   },
   "keywords": [],
